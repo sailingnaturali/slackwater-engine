@@ -21,20 +21,21 @@ public struct TideExtreme: Sendable { public let time: Date; public let height: 
 /// Predictions are fully offline and deterministic — no network, any date.
 public struct Station: Sendable {
     private let constituents: [StationConstituent]
-    private let offset: Double
     private let catalog: Catalog
 
     /// - Parameters:
     ///   - constituents: station harmonic constants (unknown names are ignored).
-    ///   - offset: constant datum offset added to every height (metres).
+    ///   - offset: constant datum offset (metres), added as a Z0 term so it applies
+    ///     uniformly to heights and extremes (the Neaps convention).
     public init(constituents inputs: [HarmonicConstituent], offset: Double = 0) {
         let d2r = Double.pi / 180
         let cat = Catalog.shared
         self.catalog = cat
-        self.constituents = inputs
+        var cs = inputs
             .filter { cat.entry($0.name) != nil }
             .map { StationConstituent(name: $0.name, amplitude: $0.amplitude, phase: d2r * $0.phase) }
-        self.offset = offset
+        if offset != 0 { cs.append(StationConstituent(name: "Z0", amplitude: offset, phase: 0)) }
+        self.constituents = cs
     }
 
     /// Height series (metres) from `from` to `to`, sampled every `step` seconds.
@@ -46,7 +47,7 @@ public struct Station: Sendable {
         let provider = ParamProvider(constituents: constituents, baseAstro: base, catalog: catalog,
                                      startMs: timeline.startMs, endHour: timeline.endHour)
         return zip(timeline.items, timeline.hours).map { item, hour in
-            TidePoint(time: item, height: offset + evalH(hour, provider(hour)))
+            TidePoint(time: item, height: evalH(hour, provider(hour)))
         }
     }
 

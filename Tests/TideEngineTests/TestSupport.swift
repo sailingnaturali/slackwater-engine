@@ -6,9 +6,12 @@ func loadFixture<T: Decodable>(_ name: String, as: T.Type) throws -> T {
 }
 
 func parseISO(_ s: String) -> Date {
-    let f = ISO8601DateFormatter()
-    f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    return f.date(from: s)!
+    let withFrac = ISO8601DateFormatter()
+    withFrac.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    if let d = withFrac.date(from: s) { return d }
+    let plain = ISO8601DateFormatter()
+    plain.formatOptions = [.withInternetDateTime]
+    return plain.date(from: s)!
 }
 
 /// Circular degree difference — avoids false failures at the 0/360 wrap.

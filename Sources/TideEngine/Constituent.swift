@@ -20,23 +20,29 @@ public struct CatalogEntry: Decodable, Sendable {
 /// The constituent catalog, loaded once from the bundled `catalog.json`.
 public struct Catalog: Sendable {
     public let byName: [String: CatalogEntry]
+    /// Alias → canonical name (e.g. NOAA "NU2" → "nu2"), so real station data resolves.
+    public let aliases: [String: String]
 
     public static let shared: Catalog = {
         let url = Bundle.module.url(forResource: "catalog", withExtension: "json")!
         // swiftlint:disable:next force_try
         let decoded = try! JSONDecoder().decode(File.self, from: Data(contentsOf: url))
-        return Catalog(byName: Dictionary(uniqueKeysWithValues: decoded.constituents.map { ($0.name, $0) }))
+        return Catalog(byName: Dictionary(uniqueKeysWithValues: decoded.constituents.map { ($0.name, $0) }),
+                       aliases: decoded.aliases)
     }()
 
-    private struct File: Decodable { let constituents: [CatalogEntry] }
+    private struct File: Decodable { let constituents: [CatalogEntry]; let aliases: [String: String] }
 
-    public func entry(_ name: String) -> CatalogEntry? { byName[name] }
-    public func speed(_ name: String) -> Double? { byName[name]?.speed }
+    /// Resolve an alias to its canonical name (identity if already canonical).
+    public func canonical(_ name: String) -> String { aliases[name] ?? name }
+
+    public func entry(_ name: String) -> CatalogEntry? { byName[canonical(name)] }
+    public func speed(_ name: String) -> Double? { byName[canonical(name)]?.speed }
 
     /// Equilibrium argument V₀ (degrees) for a constituent at the given astro state.
     /// Uses Doodson coefficients when present, else Σ factor·V₀(member).
     public func v0(_ name: String, _ a: Astro) -> Double {
-        guard let e = byName[name] else { return 0 }
+        guard let e = byName[canonical(name)] else { return 0 }
         if let coeffs = e.coefficients {
             // Doodson args: [T+h-s, s, h, p, -N, pp, 90]
             let args = [a.ThMinusS, a.s, a.h, a.p, -a.N, a.pp, 90]
@@ -52,8 +58,9 @@ public struct Catalog: Sendable {
     /// Node correction (f, u°). IHO fundamental if the constituent has one, else
     /// combined from members: f = Π f_memberᵃᵇˢ⁽ᶠᵃᶜᵗᵒʳ⁾, u = Σ factor·u_member.
     public func correction(_ name: String, _ a: Astro) -> (f: Double, u: Double) {
-        if let fundamental = ihoCorrection(name, a) { return fundamental }
-        guard let e = byName[name] else { return (1, 0) }
+        let key = canonical(name)
+        if let fundamental = ihoCorrection(key, a) { return fundamental }
+        guard let e = byName[key] else { return (1, 0) }
         var f = 1.0
         var u = 0.0
         for m in e.members ?? [] {

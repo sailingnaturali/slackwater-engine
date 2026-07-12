@@ -10,11 +10,14 @@ import { dirname, join } from 'node:path';
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'Sources', 'TideEngine', 'Resources', 'catalog.json');
 
 // constituents is a map that also includes aliases pointing at the same object.
-// De-dup by identity, keyed on the canonical .name.
+// De-dup by identity, keyed on the canonical .name. Alias keys (e.g. NOAA's "NU2"
+// for canonical "nu2") are captured so real station data resolves correctly.
 const seen = new Map();
+const aliases = {};
 for (const key of Object.keys(constituents)) {
   const c = constituents[key];
   if (!c || !c.name) continue;
+  if (key !== c.name) aliases[key] = c.name;
   if (seen.has(c.name)) continue;
   let members = null;
   try {
@@ -30,5 +33,5 @@ for (const key of Object.keys(constituents)) {
 }
 
 const entries = [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
-writeFileSync(OUT, JSON.stringify({ note: 'Generated from @neaps/tide-predictor. Members pre-resolved.', constituents: entries }, null, 0) + '\n');
-console.log(`wrote catalog.json — ${entries.length} constituents`);
+writeFileSync(OUT, JSON.stringify({ note: 'Generated from @neaps/tide-predictor. Members pre-resolved.', constituents: entries, aliases }, null, 0) + '\n');
+console.log(`wrote catalog.json — ${entries.length} constituents, ${Object.keys(aliases).length} aliases`);

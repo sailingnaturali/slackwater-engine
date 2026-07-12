@@ -3,5 +3,8 @@
   "private": true,
   "type": "module",
   "description": "Neaps JS oracle + catalog codegen for TideEngine golden tests",
-  "dependencies": { "@neaps/tide-predictor": "0.10.0" }
+  "dependencies": {
+    "@neaps/tide-database": "^0.8.20260701",
+    "@neaps/tide-predictor": "0.10.0"
+  }
 }
