@@ -6,7 +6,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-const FIX = join(dirname(fileURLToPath(import.meta.url)), '..', 'Tests', 'TideEngineTests', 'Fixtures');
+const FIX = join(dirname(fileURLToPath(import.meta.url)), '..', 'Sources', 'tide-check', 'Fixtures');
 mkdirSync(FIX, { recursive: true });
 const write = (name, obj) => { writeFileSync(join(FIX, name), JSON.stringify(obj, null, 2) + '\n'); console.log('wrote', name); };
 const iso = (d) => new Date(d).toISOString();

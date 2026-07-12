@@ -12,8 +12,12 @@ let package = Package(
             name: "TideEngine",
             resources: [.process("Resources")]
         ),
-        .testTarget(
-            name: "TideEngineTests",
+        // Golden-vector checker. This toolchain (Command Line Tools) ships no XCTest,
+        // so verification runs as an assert-based executable: `swift run tide-check`.
+        // ponytail: an executable self-check, not a test framework — works anywhere,
+        // upgrade to swift-testing if a full Xcode toolchain is ever the target.
+        .executableTarget(
+            name: "tide-check",
             dependencies: ["TideEngine"],
             resources: [.process("Fixtures")]
         )
