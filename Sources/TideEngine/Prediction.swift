@@ -37,10 +37,13 @@ final class ParamProvider {
     private let constituents: [StationConstituent]
     private let baseAstro: Astro
     private let catalog: Catalog
-    private let startMs: Double
+    let startMs: Double
     private let endHour: Double
     private var params: [PreparedParam]
     private var nextCorrectionAt: Double
+    /// Bumped whenever params are recomputed — lets callers detect a refresh
+    /// (Neaps uses array identity `!==`; Swift arrays are value types).
+    private(set) var generation = 0
 
     init(constituents: [StationConstituent], baseAstro: Astro, catalog: Catalog, startMs: Double, endHour: Double) {
         self.constituents = constituents
@@ -59,6 +62,7 @@ final class ParamProvider {
             let mid = startMs + (nextCorrectionAt + chunkEnd) / 2 * 3.6e6
             params = Self.prepare(constituents, baseAstro, catalog, Date(timeIntervalSince1970: mid / 1000))
             nextCorrectionAt += correctionIntervalHours
+            generation += 1
         }
         return params
     }

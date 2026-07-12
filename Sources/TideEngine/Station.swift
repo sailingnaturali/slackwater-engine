@@ -49,4 +49,16 @@ public struct Station: Sendable {
             TidePoint(time: item, height: offset + evalH(hour, provider(hour)))
         }
     }
+
+    // Internal accessors for the extremes extension.
+    var stationConstituents: [StationConstituent] { constituents }
+    var catalogRef: Catalog { catalog }
+
+    /// Doodson double-tide criterion: (M4 + MS4) / M2 > 0.25 (disables the
+    /// min-gap filter so aggers/double-tides are preserved).
+    var isDoubleTide: Bool {
+        func amp(_ name: String) -> Double { constituents.first { $0.name == name }?.amplitude ?? 0 }
+        let m2 = amp("M2")
+        return m2 > 0 && (amp("M4") + amp("MS4")) / m2 > 0.25
+    }
 }

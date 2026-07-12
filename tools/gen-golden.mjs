@@ -84,4 +84,12 @@ write('prediction-victoria.json', {
   points: timeline.map((p) => ({ time: iso(p.time), height: p.level })),
 });
 
+// ---- Task 5: extremes ----
+const extremes = predictor.getExtremesPrediction({ start: predStart, end: predEnd });
+write('extremes-victoria.json', {
+  note: 'Neaps getExtremesPrediction for the same set/window. Heights metres, times ISO.',
+  start: iso(predStart), end: iso(predEnd),
+  extremes: extremes.map((e) => ({ time: iso(e.time), height: e.level, kind: e.high ? 'high' : 'low' })),
+});
+
 console.log('done');
