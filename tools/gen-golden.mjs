@@ -26,4 +26,18 @@ write('astronomy.json', {
   values: TIMES.map((t) => ({ time: iso(t), astro: unwrap(astro(new Date(t))) })),
 });
 
+// ---- Task 2: node corrections (IHO — the default scheme prediction uses) ----
+const IHO_NAMES = ['Mm', 'Mf', 'O1', 'K1', 'J1', 'M1', 'M1A', 'M1B', 'M2', 'K2', 'M3', 'L2', 'gamma2', 'alpha2', 'delta2', 'xi2', 'eta2'];
+const ncTimes = ['2020-03-21T06:30:00Z', '2026-07-12T00:00:00Z', '2035-09-23T00:00:00Z'];
+write('node-corrections.json', {
+  note: 'Neaps IHO fundamentals via constituents[name].correction(astro). f dimensionless, u degrees.',
+  entries: ncTimes.map((t) => ({
+    time: iso(t),
+    corrections: Object.fromEntries(IHO_NAMES.map((n) => {
+      const c = constituents[n].correction(astro(new Date(t)));
+      return [n, { f: c.f, u: c.u }];
+    })),
+  })),
+});
+
 console.log('done');
