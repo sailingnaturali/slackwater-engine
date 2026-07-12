@@ -40,4 +40,26 @@ write('node-corrections.json', {
   })),
 });
 
+// ---- Task 3: constituent V0 + resolved node corrections ----
+const SAMPLE_CONSTITUENTS = [
+  'M2', 'S2', 'N2', 'K2', 'K1', 'O1', 'P1', 'Q1', 'J1', 'M1', 'Mm', 'Mf', 'Sa', 'Ssa',
+  'M4', 'M6', 'MS4', 'MN4', 'MK3', '2MK3', 'MK4', '2N2', 'nu2', 'mu2', 'L2', 'lambda2',
+  'T2', 'R2', 'OO1', 'rho1', 'S4', 'S6', 'M3', '2MS6', 'MSf', 'MSm', 'SO3', 'MO3', 'SK3',
+];
+const c3Times = ['2020-03-21T06:30:00Z', '2026-07-12T00:00:00Z'];
+write('constituents.json', {
+  note: 'Neaps c.value(astro) (V0, degrees) and c.correction(astro) (f,u) for sample constituents.',
+  entries: c3Times.map((t) => {
+    const a = astro(new Date(t));
+    return {
+      time: iso(t),
+      constituents: Object.fromEntries(SAMPLE_CONSTITUENTS.filter((n) => constituents[n]).map((n) => {
+        const c = constituents[n];
+        const corr = c.correction(a);
+        return [n, { v0: c.value(a), f: corr.f, u: corr.u }];
+      })),
+    };
+  }),
+});
+
 console.log('done');

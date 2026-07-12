@@ -4,6 +4,8 @@ import Foundation
 final class Checker {
     private(set) var passed = 0
     private(set) var failed = 0
+    private var reportedPassed = 0
+    private var reportedFailed = 0
     private var firstFailures: [String] = []
 
     func check(_ condition: Bool, _ message: @autoclosure () -> String) {
@@ -14,7 +16,9 @@ final class Checker {
     }
 
     func report(_ section: String) {
-        print("  \(section): \(passed) passed, \(failed) failed")
+        let p = passed - reportedPassed, f = failed - reportedFailed
+        reportedPassed = passed; reportedFailed = failed
+        print("  \(section): \(p) passed, \(f) failed")
     }
 
     func finish() -> Never {
