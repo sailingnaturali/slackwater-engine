@@ -1,0 +1,7 @@
+{
+  "name": "slackwater-engine-tools",
+  "private": true,
+  "type": "module",
+  "description": "Neaps JS oracle + catalog codegen for TideEngine golden tests",
+  "dependencies": { "@neaps/tide-predictor": "0.10.0" }
+}
