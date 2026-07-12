@@ -62,4 +62,26 @@ write('constituents.json', {
   }),
 });
 
+// ---- Task 4: timeline prediction ----
+// Representative mixed-tide constituent set (Victoria-like magnitudes). The point of
+// this fixture is engine equivalence vs Neaps; real CHS constants are validated in Task 6.
+const PREDICT_SET = [
+  { name: 'M2', amplitude: 0.96, phase: 128 }, { name: 'S2', amplitude: 0.26, phase: 155 },
+  { name: 'N2', amplitude: 0.21, phase: 108 }, { name: 'K2', amplitude: 0.08, phase: 150 },
+  { name: 'K1', amplitude: 0.84, phase: 268 }, { name: 'O1', amplitude: 0.50, phase: 250 },
+  { name: 'P1', amplitude: 0.26, phase: 264 }, { name: 'Q1', amplitude: 0.09, phase: 236 },
+  { name: 'M4', amplitude: 0.02, phase: 40 }, { name: 'MS4', amplitude: 0.01, phase: 70 },
+  { name: 'Mf', amplitude: 0.03, phase: 300 }, { name: 'Mm', amplitude: 0.02, phase: 20 },
+];
+const predStart = new Date('2026-07-12T00:00:00Z');
+const predEnd = new Date(predStart.getTime() + 48 * 3600e3);
+const predictor = createTidePredictor(PREDICT_SET);
+const timeline = predictor.getTimelinePrediction({ start: predStart, end: predEnd });
+write('prediction-victoria.json', {
+  note: 'Neaps getTimelinePrediction for a representative mixed-tide set. 48h @ 600s. Heights in metres.',
+  constituents: PREDICT_SET,
+  start: iso(predStart), end: iso(predEnd), step: 600,
+  points: timeline.map((p) => ({ time: iso(p.time), height: p.level })),
+});
+
 console.log('done');
