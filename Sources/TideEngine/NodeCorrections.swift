@@ -72,7 +72,7 @@ private func corrL2(_ N: Double, _ p: Double) -> (Double, Double) {
 
 /// IHO node correction for a base constituent name, or nil if it has no explicit
 /// fundamental (compound constituents derive theirs from members — see Constituent).
-public func ihoCorrection(_ name: String, _ a: Astro) -> (f: Double, u: Double)? {
+func ihoCorrection(_ name: String, _ a: Astro) -> (f: Double, u: Double)? {
     let N = d2r * a.N, p = d2r * a.p, pp = d2r * a.pp
     let r: (Double, Double)
     switch name {

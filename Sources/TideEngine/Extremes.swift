@@ -113,12 +113,16 @@ extension Station {
     }
 
     private func computeExtremes(from: Date, to: Date) -> [RawExtreme] {
-        let timeline = makeTimeline(from: from, to: to, step: 600)
-        guard let first = timeline.items.first else { return [] }
-        let base = astro(first)
-        let provider = ParamProvider(constituents: stationConstituents, baseAstro: base, catalog: catalogRef,
-                                     startMs: timeline.startMs, endHour: timeline.endHour)
-        return findExtremes(fromHour: 0, toHour: timeline.endHour, provider: provider,
+        // Same floor/ceil-to-step bounds as makeTimeline, without materializing the samples.
+        let step = 600.0
+        let startSec = (from.timeIntervalSince1970 / step).rounded(.down) * step
+        let endSec = (to.timeIntervalSince1970 / step).rounded(.up) * step
+        guard endSec >= startSec else { return [] }
+        let endHour = (endSec - startSec) / 3600
+        let base = astro(Date(timeIntervalSince1970: startSec))
+        let provider = ParamProvider(constituents: constituents, baseAstro: base, catalog: catalog,
+                                     startMs: startSec * 1000, endHour: endHour)
+        return findExtremes(fromHour: 0, toHour: endHour, provider: provider,
                             isDoubleTide: isDoubleTide, prominenceThreshold: 0.01)
     }
 }

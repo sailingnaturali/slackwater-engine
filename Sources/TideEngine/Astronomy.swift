@@ -29,9 +29,6 @@ private enum Coeff {
 private func polynomial(_ c: [Double], _ x: Double) -> Double {
     c.enumerated().reduce(0) { $0 + $1.element * pow(x, Double($1.offset)) }
 }
-private func derivativePolynomial(_ c: [Double], _ x: Double) -> Double {
-    c.enumerated().reduce(0) { $0 + $1.element * Double($1.offset) * pow(x, Double($1.offset) - 1) }
-}
 private func modulus(_ a: Double, _ b: Double) -> Double { (a.truncatingRemainder(dividingBy: b) + b).truncatingRemainder(dividingBy: b) }
 
 /// Julian Date from a UTC instant (Neaps JD()).
@@ -76,34 +73,29 @@ private func _nupp(_ N: Double, _ i: Double, _ omega: Double) -> Double {
 }
 
 /// Astronomical state at an instant. Fields match Neaps `astro()` keys (degrees).
-public struct Astro {
-    public let s, h, p, N, pp, ninety, omega, i: Double
-    public let I, xi, nu, nup, nupp: Double
-    public let ThMinusS, P: Double
-    /// Speeds (deg/hour) for the mean longitudes — used for constituent V₀ speed derivation.
-    public let speeds: [String: Double]
+struct Astro {
+    let s, h, p, N, pp, ninety, omega, i: Double
+    let I, xi, nu, nup, nupp: Double
+    let ThMinusS, P: Double
 
     /// Neaps-key → value map (for golden comparison against the reference).
-    public var all: [String: Double] {
+    var all: [String: Double] {
         ["s": s, "h": h, "p": p, "N": N, "pp": pp, "90": ninety, "omega": omega, "i": i,
          "I": I, "xi": xi, "nu": nu, "nup": nup, "nupp": nupp, "T+h-s": ThMinusS, "P": P]
     }
 }
 
 /// Compute the astronomical state at a UTC instant (Neaps `astro()`).
-public func astro(_ date: Date) -> Astro {
+func astro(_ date: Date) -> Astro {
     let t = T(date)
-    let dTdHour = 1.0 / (24 * 365.25 * 100)
     let polys: [(String, [Double])] = [
         ("s", Coeff.lunarLongitude), ("h", Coeff.solarLongitude), ("p", Coeff.lunarPerigee),
         ("N", Coeff.lunarNode), ("pp", Coeff.solarPerigee), ("90", [90]),
         ("omega", Coeff.terrestrialObliquity), ("i", Coeff.lunarInclination),
     ]
     var value: [String: Double] = [:]
-    var speed: [String: Double] = [:]
     for (name, c) in polys {
         value[name] = modulus(polynomial(c, t), 360)
-        speed[name] = derivativePolynomial(c, t) * dTdHour
     }
     let N = value["N"]!, i = value["i"]!, omega = value["omega"]!
     let Ival = modulus(_I(N, i, omega), 360)
@@ -113,16 +105,13 @@ public func astro(_ date: Date) -> Astro {
     let nupp = modulus(_nupp(N, i, omega), 360)
     let jd = julianDate(date)
     let hourValue = (jd - jd.rounded(.down)) * 360
-    let hourSpeed = 15.0
     let ThMinusS = hourValue + value["h"]! - value["s"]!
-    value["T+h-s"] = ThMinusS
-    speed["T+h-s"] = hourSpeed + speed["h"]! - speed["s"]!
     let P = value["p"]! - xi.truncatingRemainder(dividingBy: 360)
 
     return Astro(
         s: value["s"]!, h: value["h"]!, p: value["p"]!, N: N, pp: value["pp"]!,
         ninety: value["90"]!, omega: omega, i: i,
         I: Ival, xi: xi, nu: nu, nup: nup, nupp: nupp,
-        ThMinusS: ThMinusS, P: P, speeds: speed
+        ThMinusS: ThMinusS, P: P
     )
 }

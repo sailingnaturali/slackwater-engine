@@ -20,8 +20,8 @@ public struct TideExtreme: Sendable { public let time: Date; public let height: 
 /// A tide/current station: a set of harmonic constituents plus a datum offset (m).
 /// Predictions are fully offline and deterministic — no network, any date.
 public struct Station: Sendable {
-    private let constituents: [StationConstituent]
-    private let catalog: Catalog
+    let constituents: [StationConstituent]
+    let catalog: Catalog
 
     /// - Parameters:
     ///   - constituents: station harmonic constants (unknown names are ignored).
@@ -50,10 +50,6 @@ public struct Station: Sendable {
             TidePoint(time: item, height: evalH(hour, provider(hour)))
         }
     }
-
-    // Internal accessors for the extremes extension.
-    var stationConstituents: [StationConstituent] { constituents }
-    var catalogRef: Catalog { catalog }
 
     /// Doodson double-tide criterion: (M4 + MS4) / M2 > 0.25 (disables the
     /// min-gap filter so aggers/double-tides are preserved).
