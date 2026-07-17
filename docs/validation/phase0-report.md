@@ -42,7 +42,7 @@ tolerance.
 |--------|----------|--------|
 | **NOAA** (~3400 stations) | bundled offline via `@neaps/tide-database` | ✅ highest confidence |
 | **CHS / Victoria 07120** | not bundled (CHS isn't a Neaps source) — **IWLS API** serves `wlp` / `wlp-hilo` predictions online | ✅ confirmed live; fits fetch-and-cache confidence-factor design → **no constituent bundling, no licensing issue** |
-| **Currents (BC passes)** | CHS IWLS exposes `wcp` (current predictions) for **35+ stations** | ✅ available via the same online pattern — no current-station harmonics needed |
+| **Currents (Salish Sea)** | CHS IWLS `wcp` (Canada, **35+ stations**) + NOAA CO-OPS (US side) expose current *predictions* online | ✅ launch path is **online everywhere** (slack/max direct from the APIs). **Offline US current harmonics (XTide ingestion) is deferred to post-MVP** — a distinct pipeline, not a Phase 0 gap; see spec §4/§7 |
 
 Key consequence: the CHS licensing question from the brief is **moot by design**. CHS
 publishes *predictions* (not just constituents) through IWLS, so tides and currents in
@@ -57,7 +57,8 @@ constants predict correctly.
 
 Proceed to Phase 1 (iOS app). The engine is proven; the offline core is real. The
 online layer (CHS/currents fetch + cache + confidence factor) is a Phase-1 build on the
-IWLS endpoints confirmed here — not a research risk.
+IWLS endpoints confirmed here — not a research risk. Offline US current harmonics (XTide
+ingestion) is a named **post-MVP** enhancement, not a Phase 0 gap — see spec §4/§7.
 
 **For filming:** the Airplane-Mode / Victoria money shot needs the CHS online-fetch path
 (Phase 1) *or* can use a bundled NOAA station (e.g. Friday Harbor) to demo offline
