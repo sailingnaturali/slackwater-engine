@@ -93,11 +93,13 @@ sbfTimeAdjMin (slack before flood, min), sbeTimeAdjMin (slack before ebb, min),
 mfcAmpAdj (flood speed ratio),           mecAmpAdj (ebb speed ratio)
 ```
 
-Note the **two** slack offsets (before-flood vs before-ebb) — richer than the
-engine's single-`slackTimeOffset` `SubordinateStation`. Subordinate stations are
-**deferred** in v1 (harmonic covers all target passes); the two-slack model is the
-refinement to add before bundling type-S stations. Endpoint needs the `_<currbin>`
-composite id.
+Note the **two** slack offsets (before-flood vs before-ebb). The engine's
+`SubordinateStation` models both (a slack takes the offset for the phase it
+precedes). **Validated** against NOAA `currents_predictions` for PCT0236 (ref
+SFB1201): 6.1 min / 0.05 kn over 11 events. Endpoint needs the `_<currbin>`
+composite id. Amp adjustments (`mfcAmpAdj`/`mecAmpAdj`) are speed *ratios* on the
+reference peak (confirmed by the validation). The extractor backfills reference
+harmonic stations that fall outside the extraction box so subordinates resolve.
 
 ## Weak/mixed-station labeling — FIXED
 
