@@ -109,13 +109,15 @@ public struct CurrentStation: Sendable {
         }
     }
 
-    /// Max flood (positive peak) and max ebb (negative peak) — slope-zeros of velocity.
+    /// Max flood / max ebb — velocity extrema (slope-zeros). Classified by the SIGN
+    /// of velocity, not slope high/low (NOAA's convention): a relaxation extremum
+    /// that never reverses stays flood or ebb per its sign. Matches NOAA max_slack.
     public func maxima(from: Date, to: Date) -> [CurrentEvent] {
         let (p, endHour) = provider(from: from, to: to)
         let raw = findExtremes(fromHour: 0, toHour: endHour, provider: p,
                                isDoubleTide: false, prominenceThreshold: 0.01)
         return raw.map { CurrentEvent(time: $0.time, speed: $0.level,
-                                      kind: $0.high ? .maxFlood : .maxEbb) }
+                                      kind: $0.level >= 0 ? .maxFlood : .maxEbb) }
     }
 
     /// Slack water — velocity value-zeros.

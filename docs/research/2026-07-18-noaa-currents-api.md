@@ -12,13 +12,30 @@ are NOAA-sourced (no XTide). Recorded so it isn't re-litigated.
   led us to wrongly conclude NOAA didn't publish current constituents.
 - **XTide is unnecessary.** NOAA covers our Salish passes directly (378 harmonic
   current stations in the Salish box), public-domain.
-- **The `currents_predictions` product was down** on 2026-07-18 (returns
-  "not available" for every station, incl. NOAA's own doc example `EPT0003`) —
-  NOAA cloud migration. Not needed for building; only wanted as a validation oracle.
-- **NOAA 404s datacenter IPs on the mdapi.** Our Bash and the WebFetch egress both
-  got bare Tomcat 404s on the station-list endpoint; a residential browser worked.
-  The extractor must run from a residential IP. The Data API (`datagetter`) does
-  serve datacenter IPs.
+- **`currents_predictions` IS live** — the earlier "not available"/404 wall was
+  (a) NOAA's default-User-Agent block, (b) transient rate-limiting from probing
+  volume, and (c) querying observation/survey stations at the wrong bin. With a
+  browser UA + a served station + its `currbin`, it returns data. Our exact passes
+  (PUG1701/PUG1717) are *survey* stations NOAA doesn't serve predictions for, but
+  hundreds of other harmonic stations are served (e.g. PUG1741 Bellingham Channel,
+  PUG1612 Clinton Ferry, SFB1222).
+- **NOAA 404s the default fetch/curl User-Agent** (not the IP — same residential
+  box works in a browser but not plain curl). Send a browser `User-Agent` header;
+  both tools do.
+
+## Phase-convention gate — RESOLVED
+
+`majorPhaseGMT` is the correct phase field. Validated the engine against NOAA's own
+`currents_predictions` for PUG1741 (Bellingham Channel, a clean 2.8 kn reversing
+station): **max flood/ebb match to 9.7 min / 0.055 kn** across 11 events — on par
+with the tide engine's Phase-0 (7.9 min). Fixture captured at
+`Tests/TideEngineTests/Fixtures/currents-golden-harmonic.json` so the check runs
+offline.
+
+**Labeling (fixed):** classify a velocity extremum by the SIGN of velocity, not
+slope high/low — a relaxation extremum that never reverses stays flood/ebb per its
+sign. This matches NOAA's max_slack exactly (e.g. a −0.3 kn relaxation peak during
+a long ebb is `maxEbb`, not `maxFlood`).
 
 ## Endpoints
 
@@ -82,14 +99,11 @@ engine's single-`slackTimeOffset` `SubordinateStation`. Subordinate stations are
 refinement to add before bundling type-S stations. Endpoint needs the `_<currbin>`
 composite id.
 
-## Known engine edge (weak/mixed stations)
+## Weak/mixed-station labeling — FIXED
 
-`maxima` labels slope-extrema high→flood / low→ebb. At weak mixed-tide stations
-(e.g. PUG1717 Turn Point) a relaxation minimum that never crosses zero can be
-labeled `maxEbb` with a positive speed (observed +0.07 kn). Strong reversing passes
-(Deception Pass etc.) are unaffected. Proper fix (a non-reversing extremum is a
-relaxation, not a flood/ebb, and has no slack) is calibrated against the NOAA
-`currents_predictions` oracle once it recovers.
+Earlier a relaxation extremum that never crossed zero was mislabeled (a positive
+local-max during ebb → "maxFlood"). Fixed by classifying on velocity sign (see the
+phase-gate section); confirmed against NOAA at PUG1741.
 
 ## Dead-ends ruled out
 

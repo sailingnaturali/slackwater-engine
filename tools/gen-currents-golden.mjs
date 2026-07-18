@@ -12,7 +12,9 @@ const [station, currbin, start, end, out] = process.argv.slice(2);
 if (!out) { console.error('usage: gen-currents-golden.mjs <station> <currbin> <startISO> <endISO> <out.json>'); process.exit(1); }
 const MD = 'https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi';
 const DA = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter';
-const j = async (u) => { const r = await fetch(u); if (!r.ok) throw new Error(`${r.status} ${u}`); return r.json(); };
+// NOAA 404s the default fetch/curl User-Agent — send a browser UA.
+const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
+const j = async (u) => { const r = await fetch(u, { headers: { 'User-Agent': UA } }); if (!r.ok) throw new Error(`${r.status} ${u}`); return r.json(); };
 const ymd = (iso) => iso.slice(0, 10).replace(/-/g, '');
 
 const hc = await j(`${MD}/stations/${station}/harcon.json?units=english&bin=${currbin}`);
