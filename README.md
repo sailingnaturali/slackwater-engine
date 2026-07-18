@@ -6,7 +6,7 @@ Tide prediction is deterministic astronomy, not a live feed. Given a station's h
 constituents you can compute heights and the high/low turns for any minute, years ahead,
 with **zero network**. This package is a pure-Swift harmonic engine that does exactly that.
 
-The app is ours; **the correctness is everyone's.** If you sail somewhere our numbers are
+**It's all open — the engine MIT, the app GPL v3.** If you sail somewhere our numbers are
 off, read the code, check it against your home waters, and send a fix.
 
 ## Status
