@@ -55,3 +55,79 @@ func findSlacks(fromHour: Double, toHour: Double, provider: ParamProvider) -> [R
     }
     return results
 }
+
+public struct CurrentPoint: Sendable { public let time: Date; public let speed: Double }
+public enum CurrentEventKind: Sendable { case slack, maxFlood, maxEbb }
+public struct CurrentEvent: Sendable {
+    public let time: Date; public let speed: Double; public let kind: CurrentEventKind
+}
+
+/// A harmonic current station. Same constituent math as `Station`; the prediction
+/// is signed major-axis velocity (knots) — positive = flood, negative = ebb.
+public struct CurrentStation: Sendable {
+    let constituents: [StationConstituent]
+    let catalog: Catalog
+    public let floodDirection: Double
+    public let ebbDirection: Double
+
+    /// - floodDirection: NOAA `azi` (major-axis azimuth, deg true).
+    /// - ebbDirection: azi + 180 (mod 360).
+    /// - offset: NOAA `majorMeanSpeed` (mean flow, knots) as the Z₀ term.
+    public init(constituents inputs: [HarmonicConstituent],
+                floodDirection: Double, ebbDirection: Double, offset: Double = 0) {
+        let d2r = Double.pi / 180
+        let cat = Catalog.shared
+        self.catalog = cat
+        self.floodDirection = floodDirection
+        self.ebbDirection = ebbDirection
+        var cs = inputs
+            .filter { cat.entry($0.name) != nil }
+            .map { StationConstituent(name: $0.name, amplitude: $0.amplitude, phase: d2r * $0.phase) }
+        if offset != 0 { cs.append(StationConstituent(name: "Z0", amplitude: offset, phase: 0)) }
+        self.constituents = cs
+    }
+
+    private func provider(from: Date, to: Date, step: Double = 600) -> (ParamProvider, Double) {
+        let startSec = (from.timeIntervalSince1970 / step).rounded(.down) * step
+        let endSec = (to.timeIntervalSince1970 / step).rounded(.up) * step
+        let endHour = max(0, (endSec - startSec) / 3600)
+        let base = astro(Date(timeIntervalSince1970: startSec))
+        let p = ParamProvider(constituents: constituents, baseAstro: base, catalog: catalog,
+                              startMs: startSec * 1000, endHour: endHour)
+        return (p, endHour)
+    }
+
+    /// Signed major-axis velocity series (knots), sampled every `step` seconds.
+    public func speeds(from: Date, to: Date, step: TimeInterval = 600) -> [CurrentPoint] {
+        let timeline = makeTimeline(from: from, to: to, step: step)
+        guard let first = timeline.items.first else { return [] }
+        let base = astro(first)
+        let p = ParamProvider(constituents: constituents, baseAstro: base, catalog: catalog,
+                              startMs: timeline.startMs, endHour: timeline.endHour)
+        return zip(timeline.items, timeline.hours).map { item, hour in
+            CurrentPoint(time: item, speed: evalH(hour, p(hour)))
+        }
+    }
+
+    /// Max flood (positive peak) and max ebb (negative peak) — slope-zeros of velocity.
+    public func maxima(from: Date, to: Date) -> [CurrentEvent] {
+        let (p, endHour) = provider(from: from, to: to)
+        let raw = findExtremes(fromHour: 0, toHour: endHour, provider: p,
+                               isDoubleTide: false, prominenceThreshold: 0.01)
+        return raw.map { CurrentEvent(time: $0.time, speed: $0.level,
+                                      kind: $0.high ? .maxFlood : .maxEbb) }
+    }
+
+    /// Slack water — velocity value-zeros.
+    public func slacks(from: Date, to: Date) -> [CurrentEvent] {
+        let (p, endHour) = provider(from: from, to: to)
+        return findSlacks(fromHour: 0, toHour: endHour, provider: p)
+            .map { CurrentEvent(time: $0.time, speed: $0.speed, kind: .slack) }
+    }
+
+    /// Slacks + maxima merged in time order — the app-facing event list.
+    public func events(from: Date, to: Date) -> [CurrentEvent] {
+        (slacks(from: from, to: to) + maxima(from: from, to: to))
+            .sorted { $0.time < $1.time }
+    }
+}

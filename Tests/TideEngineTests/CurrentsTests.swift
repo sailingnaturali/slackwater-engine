@@ -27,3 +27,38 @@ import Testing
         #expect(abs(gap - 6.2103) < 0.1, "slack gap \(gap) h at index \(i)")
     }
 }
+
+// A reversing current from a couple of constituents. Assert only structural
+// invariants true for any correct reversing current — no external oracle needed.
+@Test func currentStationStructureIsConsistent() throws {
+    let station = CurrentStation(
+        constituents: [
+            HarmonicConstituent(name: "M2", amplitude: 2.0, phase: 40),
+            HarmonicConstituent(name: "K1", amplitude: 0.5, phase: 200)
+        ],
+        floodDirection: 120, ebbDirection: 300
+    )
+    let start = parseISO("2026-03-01T00:00:00Z")
+    let end = parseISO("2026-03-02T00:00:00Z")
+
+    let speeds = station.speeds(from: start, to: end, step: 600)
+    #expect(!speeds.isEmpty)
+    let maxAbs = speeds.map { abs($0.speed) }.max()!
+    #expect(maxAbs > 1.0, "reversing current should reach real speed, got \(maxAbs)")
+
+    let maxima = station.maxima(from: start, to: end)
+    #expect(maxima.allSatisfy { $0.kind == .maxFlood || $0.kind == .maxEbb })
+    #expect(maxima.contains { $0.kind == .maxFlood } && maxima.contains { $0.kind == .maxEbb })
+    for m in maxima {
+        if m.kind == .maxFlood { #expect(m.speed > 0, "flood peak \(m.speed) not positive") }
+        if m.kind == .maxEbb { #expect(m.speed < 0, "ebb peak \(m.speed) not negative") }
+    }
+
+    let slacks = station.slacks(from: start, to: end)
+    #expect(slacks.allSatisfy { $0.kind == .slack && abs($0.speed) < 1e-3 })
+
+    let events = station.events(from: start, to: end)
+    for i in 1..<events.count {
+        #expect(events[i].time >= events[i - 1].time, "events out of order at \(i)")
+    }
+}
