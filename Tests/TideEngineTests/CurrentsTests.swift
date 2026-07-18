@@ -101,3 +101,14 @@ import Testing
         }
     }
 }
+
+@Test func currentCatalogLoadsAndPredicts() throws {
+    let cat = CurrentCatalog.shared
+    #expect(!cat.ids().isEmpty, "bundled currents.json should have stations")
+    let station = try #require(cat.station("PUG1701"), "Deception Pass should be bundled")
+    let start = parseISO("2026-06-01T00:00:00Z")
+    let events = station.events(from: start, to: start.addingTimeInterval(86400))
+    #expect(!events.isEmpty, "PUG1701 produced no events")
+    // Deception Pass is a strong reversing current — expect both flood and ebb maxima.
+    #expect(events.contains { $0.kind == .maxFlood } && events.contains { $0.kind == .maxEbb })
+}

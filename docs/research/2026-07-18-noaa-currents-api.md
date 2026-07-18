@@ -67,6 +67,30 @@ for a future 2D/rotary mode.
 PUG1701 sample: M2 majorAmplitude 5.418 kn @ majorPhaseGMT 241.2°, azi 92.9°,
 majorMeanSpeed −0.619 kn, 26 constituents total.
 
+## Subordinate offsets schema (confirmed, `stations/<id>_<currbin>/currentpredictionoffsets.json`)
+
+```
+refStationId, refStationBin, meanFloodDir, meanEbbDir,
+mfcTimeAdjMin (max flood current, min),  mecTimeAdjMin (max ebb current, min),
+sbfTimeAdjMin (slack before flood, min), sbeTimeAdjMin (slack before ebb, min),
+mfcAmpAdj (flood speed ratio),           mecAmpAdj (ebb speed ratio)
+```
+
+Note the **two** slack offsets (before-flood vs before-ebb) — richer than the
+engine's single-`slackTimeOffset` `SubordinateStation`. Subordinate stations are
+**deferred** in v1 (harmonic covers all target passes); the two-slack model is the
+refinement to add before bundling type-S stations. Endpoint needs the `_<currbin>`
+composite id.
+
+## Known engine edge (weak/mixed stations)
+
+`maxima` labels slope-extrema high→flood / low→ebb. At weak mixed-tide stations
+(e.g. PUG1717 Turn Point) a relaxation minimum that never crosses zero can be
+labeled `maxEbb` with a positive speed (observed +0.07 kn). Strong reversing passes
+(Deception Pass etc.) are unaffected. Proper fix (a non-reversing extremum is a
+relaxation, not a flood/ebb, and has no slack) is calibrated against the NOAA
+`currents_predictions` oracle once it recovers.
+
 ## Dead-ends ruled out
 
 - **XTide `harcon`/Harmbase2 as the constituent source** — unnecessary; NOAA has it.
