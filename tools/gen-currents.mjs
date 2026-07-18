@@ -72,8 +72,13 @@ for (const refId of needed) {
   try { stations.push(await harmonic(rs)); }
   catch (e) { console.error(`ref ${refId}: ${e.message}`); }
 }
+// Drop subordinates whose reference still isn't harmonic (empty-harcon or type-W ref).
+const harmonicIds = new Set(stations.filter((x) => x.type === 'harmonic').map((x) => x.id));
+const kept = stations.filter((x) => x.type === 'harmonic' || harmonicIds.has(x.reference));
+const dropped = stations.length - kept.length;
+stations.length = 0; stations.push(...kept);
 console.error(`${stations.filter((x) => x.type === 'harmonic').length} harmonic, `
   + `${stations.filter((x) => x.type === 'subordinate').length} subordinate, `
-  + `${needed.length} refs backfilled, ${wSkipped} type-W skipped`);
+  + `${needed.length} refs backfilled, ${wSkipped} type-W skipped, ${dropped} unresolvable subs dropped`);
 writeFileSync(out, JSON.stringify({ note: 'Generated from NOAA CO-OPS mdapi (harcon@currbin + currentpredictionoffsets). US only.', stations }, null, 0) + '\n');
 console.error(`wrote ${out} — ${stations.length} stations`);
