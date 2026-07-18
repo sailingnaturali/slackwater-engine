@@ -6,7 +6,7 @@ import Foundation
 
 private let toleranceHours = 1.0 / 3600  // 1 second
 
-private struct RawExtreme { let hour: Double; let time: Date; let level: Double; let high: Bool }
+struct RawExtreme { let hour: Double; let time: Date; let level: Double; let high: Bool }
 
 /// Root of h'(t) in [a, b] where h'(a), h'(b) have opposite signs. Bisection.
 private func bisect(_ a0: Double, _ b0: Double, _ fa0: Double, _ params: [PreparedParam]) -> Double {
@@ -20,8 +20,8 @@ private func bisect(_ a0: Double, _ b0: Double, _ fa0: Double, _ params: [Prepar
     }
 }
 
-private func findExtremes(fromHour: Double, toHour: Double, provider: ParamProvider,
-                          isDoubleTide: Bool, prominenceThreshold: Double) -> [RawExtreme] {
+func findExtremes(fromHour: Double, toHour: Double, provider: ParamProvider,
+                  isDoubleTide: Bool, prominenceThreshold: Double) -> [RawExtreme] {
     var params = provider(max(0, fromHour))
     var lastGen = provider.generation
     if params.isEmpty { return [] }
