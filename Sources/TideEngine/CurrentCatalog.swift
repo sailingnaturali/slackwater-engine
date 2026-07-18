@@ -23,7 +23,8 @@ public struct CurrentCatalog: Sendable {
         let offset: Double?
         let constituents: [Con]?
         let reference: String?
-        let slackTimeOffset: Double?; let floodTimeOffset: Double?; let ebbTimeOffset: Double?
+        let slackBeforeFloodOffset: Double?; let slackBeforeEbbOffset: Double?
+        let floodTimeOffset: Double?; let ebbTimeOffset: Double?
         let floodSpeedRatio: Double?; let ebbSpeedRatio: Double?
         struct Con: Decodable, Sendable { let name: String; let amplitude: Double; let phase: Double }
     }
@@ -55,7 +56,8 @@ public struct CurrentCatalog: Sendable {
             floodDirection: ref.floodDirection ?? 0, ebbDirection: ref.ebbDirection ?? 0, offset: ref.offset ?? 0)
         return .subordinate(SubordinateStation(
             reference: reference,
-            slackTimeOffset: r.slackTimeOffset ?? 0, floodTimeOffset: r.floodTimeOffset ?? 0, ebbTimeOffset: r.ebbTimeOffset ?? 0,
+            slackBeforeFloodOffset: r.slackBeforeFloodOffset ?? 0, slackBeforeEbbOffset: r.slackBeforeEbbOffset ?? 0,
+            floodTimeOffset: r.floodTimeOffset ?? 0, ebbTimeOffset: r.ebbTimeOffset ?? 0,
             floodSpeedRatio: r.floodSpeedRatio ?? 1, ebbSpeedRatio: r.ebbSpeedRatio ?? 1,
             floodDirection: r.floodDirection ?? 0, ebbDirection: r.ebbDirection ?? 0))
     }

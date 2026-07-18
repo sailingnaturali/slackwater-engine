@@ -63,8 +63,9 @@ import Testing
     }
 }
 
-// The reduction is pure arithmetic on the reference's events: shift each event's
-// time by its per-kind offset, scale flood/ebb peak speeds by their ratios.
+// NOAA's subordinate reduction: two slack offsets (before-flood, before-ebb),
+// two peak time offsets, two speed ratios. A slack is shifted by the offset that
+// matches the phase it precedes (its next non-slack event's kind).
 @Test func subordinateReductionShiftsAndScales() throws {
     let reference = CurrentStation(
         constituents: [HarmonicConstituent(name: "M2", amplitude: 2.0, phase: 40)],
@@ -75,30 +76,37 @@ import Testing
 
     let sub = SubordinateStation(
         reference: reference,
-        slackTimeOffset: 600, floodTimeOffset: -1800, ebbTimeOffset: 1200,
+        slackBeforeFloodOffset: 600, slackBeforeEbbOffset: -900,
+        floodTimeOffset: -1800, ebbTimeOffset: 1200,
         floodSpeedRatio: 1.5, ebbSpeedRatio: 0.8,
         floodDirection: 110, ebbDirection: 290
     )
 
-    // Reference over a wider window so every subordinate event's pre-image is present
-    // (sub.events pads its own reference window; node-correction midpoints then differ
-    // by a hair, so speeds match to ~1e-3 kn, not bit-exactly).
-    let refEvents = reference.events(from: start.addingTimeInterval(-7200),
-                                     to: end.addingTimeInterval(7200))
     let subEvents = sub.events(from: start, to: end)
     #expect(!subEvents.isEmpty)
 
+    // Sign-consistent labels; slacks are exactly zero.
     for se in subEvents {
-        let offset: TimeInterval = se.kind == .slack ? 600 : (se.kind == .maxFlood ? -1800 : 1200)
-        let ratio = se.kind == .maxFlood ? 1.5 : (se.kind == .maxEbb ? 0.8 : 1.0)
-        let origTime = se.time.addingTimeInterval(-offset)
-        let match = refEvents.filter { $0.kind == se.kind }
-            .min { abs($0.time.timeIntervalSince1970 - origTime.timeIntervalSince1970) < abs($1.time.timeIntervalSince1970 - origTime.timeIntervalSince1970) }
-        let r = try #require(match)
-        #expect(abs(r.time.timeIntervalSince1970 - origTime.timeIntervalSince1970) < 2, "time shift mismatch")
-        if se.kind != .slack {
-            #expect(abs(se.speed - r.speed * ratio) < 1e-3, "speed scale mismatch")
+        switch se.kind {
+        case .maxFlood: #expect(se.speed > 0)
+        case .maxEbb:   #expect(se.speed < 0)
+        case .slack:    #expect(abs(se.speed) < 1e-9, "slack speed must be 0")
         }
+    }
+
+    // Flood peaks: reconstruct expected time/speed from the reference (undo the
+    // -1800 s flood time offset, expect speed × 1.5). Reference over a wide window
+    // so the pre-image is present; node-correction midpoints differ by a hair, so
+    // speeds match to ~1e-3 kn.
+    let refFlood = reference.maxima(from: start.addingTimeInterval(-7200), to: end.addingTimeInterval(7200))
+        .filter { $0.kind == .maxFlood }
+    let subFlood = subEvents.filter { $0.kind == .maxFlood }
+    #expect(!subFlood.isEmpty)
+    for sf in subFlood {
+        let orig = sf.time.addingTimeInterval(1800)
+        let r = try #require(refFlood.min { abs($0.time.timeIntervalSince1970 - orig.timeIntervalSince1970) < abs($1.time.timeIntervalSince1970 - orig.timeIntervalSince1970) })
+        #expect(abs(r.time.timeIntervalSince1970 - orig.timeIntervalSince1970) < 2, "flood time shift")
+        #expect(abs(sf.speed - r.speed * 1.5) < 1e-3, "flood speed scale")
     }
 }
 
@@ -111,4 +119,12 @@ import Testing
     #expect(!events.isEmpty, "PUG1701 produced no events")
     // Deception Pass is a strong reversing current — expect both flood and ebb maxima.
     #expect(events.contains { $0.kind == .maxFlood } && events.contains { $0.kind == .maxEbb })
+
+    // A subordinate station resolves its reference and predicts.
+    if case .subordinate = try #require(cat.station("PCT1321")) {
+        let subEvents = try #require(cat.station("PCT1321")).events(from: start, to: start.addingTimeInterval(86400))
+        #expect(!subEvents.isEmpty, "subordinate PCT1321 produced no events")
+    } else {
+        Issue.record("PCT1321 should load as a subordinate station")
+    }
 }

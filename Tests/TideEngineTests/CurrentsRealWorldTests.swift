@@ -56,3 +56,53 @@ private struct CurrentGoldenFixture: Decodable {
     #expect(checked > 0)
     print("PUG1741 vs NOAA — \(checked) max events, max time err \(maxTimeErr) min, max speed err \(maxSpeedErr) kn")
 }
+
+private struct SubGolden: Decodable {
+    let sub: String
+    let refConstituents: [CurrentGoldenFixture.C]
+    let refFloodDirection: Double; let refEbbDirection: Double; let refOffset: Double
+    let slackBeforeFloodOffset: Double; let slackBeforeEbbOffset: Double
+    let floodTimeOffset: Double; let ebbTimeOffset: Double
+    let floodSpeedRatio: Double; let ebbSpeedRatio: Double
+    let floodDirection: Double; let ebbDirection: Double
+    let events: [CurrentGoldenFixture.E]
+}
+
+/// Validate the two-slack subordinate reduction against NOAA's own
+/// currents_predictions for a subordinate station (PCT0236, ref SFB1201). The
+/// table method is an approximation, so tolerances are looser: ±30 min, ±0.4 kn.
+@Test func subordinateCurrentMatchesNOAA() throws {
+    let fx: SubGolden
+    do { fx = try loadFixture("currents-golden-subordinate", as: SubGolden.self) }
+    catch { return }
+    guard !fx.events.isEmpty else { return }
+
+    let reference = CurrentStation(
+        constituents: fx.refConstituents.map { HarmonicConstituent(name: $0.name, amplitude: $0.amplitude, phase: $0.phase) },
+        floodDirection: fx.refFloodDirection, ebbDirection: fx.refEbbDirection, offset: fx.refOffset)
+    let sub = SubordinateStation(
+        reference: reference,
+        slackBeforeFloodOffset: fx.slackBeforeFloodOffset, slackBeforeEbbOffset: fx.slackBeforeEbbOffset,
+        floodTimeOffset: fx.floodTimeOffset, ebbTimeOffset: fx.ebbTimeOffset,
+        floodSpeedRatio: fx.floodSpeedRatio, ebbSpeedRatio: fx.ebbSpeedRatio,
+        floodDirection: fx.floodDirection, ebbDirection: fx.ebbDirection)
+
+    let times = fx.events.map { parseISO($0.time) }
+    let computed = sub.events(from: times.min()!.addingTimeInterval(-3600), to: times.max()!.addingTimeInterval(3600))
+    #expect(!computed.isEmpty)
+
+    var maxTimeErr = 0.0, maxSpeedErr = 0.0, checked = 0
+    for e in fx.events where e.kind != "slack" {
+        let t = parseISO(e.time)
+        let m = try #require(computed.min { abs($0.time.timeIntervalSince1970 - t.timeIntervalSince1970) < abs($1.time.timeIntervalSince1970 - t.timeIntervalSince1970) })
+        let kind: CurrentEventKind = e.kind == "maxFlood" ? .maxFlood : .maxEbb
+        let timeErr = abs(m.time.timeIntervalSince1970 - t.timeIntervalSince1970) / 60
+        let speedErr = abs(abs(m.speed) - abs(e.speed))
+        maxTimeErr = max(maxTimeErr, timeErr); maxSpeedErr = max(maxSpeedErr, speedErr); checked += 1
+        #expect(m.kind == kind, "\(e.kind) at \(e.time): engine labeled \(m.kind)")
+        #expect(timeErr < 30, "\(e.kind) at \(e.time): time off \(timeErr) min")
+        #expect(speedErr < 0.4, "\(e.kind) at \(e.time): speed \(m.speed) vs \(e.speed)")
+    }
+    #expect(checked > 0)
+    print("PCT0236 (subordinate) vs NOAA — \(checked) max events, max time err \(maxTimeErr) min, max speed err \(maxSpeedErr) kn")
+}

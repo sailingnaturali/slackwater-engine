@@ -135,24 +135,28 @@ public struct CurrentStation: Sendable {
 }
 
 /// A subordinate current station: no constituents of its own. Its events are the
-/// reference station's events, time-shifted per kind and speed-scaled for
-/// flood/ebb (the NOAA Current-Tables reduction). Event list only — no curve.
+/// reference station's events, time-shifted and speed-scaled by NOAA's Current-Tables
+/// offsets. NOAA gives TWO slack offsets — slack-before-flood and slack-before-ebb —
+/// plus per-phase max time offsets and speed ratios. Event list only — no curve.
 public struct SubordinateStation: Sendable {
     let reference: CurrentStation
-    public let slackTimeOffset: TimeInterval
-    public let floodTimeOffset: TimeInterval
-    public let ebbTimeOffset: TimeInterval
-    public let floodSpeedRatio: Double
-    public let ebbSpeedRatio: Double
+    public let slackBeforeFloodOffset: TimeInterval  // NOAA sbfTimeAdjMin
+    public let slackBeforeEbbOffset: TimeInterval     // NOAA sbeTimeAdjMin
+    public let floodTimeOffset: TimeInterval           // NOAA mfcTimeAdjMin
+    public let ebbTimeOffset: TimeInterval             // NOAA mecTimeAdjMin
+    public let floodSpeedRatio: Double                 // NOAA mfcAmpAdj
+    public let ebbSpeedRatio: Double                   // NOAA mecAmpAdj
     public let floodDirection: Double
     public let ebbDirection: Double
 
     public init(reference: CurrentStation,
-                slackTimeOffset: TimeInterval, floodTimeOffset: TimeInterval, ebbTimeOffset: TimeInterval,
+                slackBeforeFloodOffset: TimeInterval, slackBeforeEbbOffset: TimeInterval,
+                floodTimeOffset: TimeInterval, ebbTimeOffset: TimeInterval,
                 floodSpeedRatio: Double, ebbSpeedRatio: Double,
                 floodDirection: Double, ebbDirection: Double) {
         self.reference = reference
-        self.slackTimeOffset = slackTimeOffset
+        self.slackBeforeFloodOffset = slackBeforeFloodOffset
+        self.slackBeforeEbbOffset = slackBeforeEbbOffset
         self.floodTimeOffset = floodTimeOffset
         self.ebbTimeOffset = ebbTimeOffset
         self.floodSpeedRatio = floodSpeedRatio
@@ -162,14 +166,19 @@ public struct SubordinateStation: Sendable {
     }
 
     public func events(from: Date, to: Date) -> [CurrentEvent] {
-        let pad = max(abs(slackTimeOffset), max(abs(floodTimeOffset), abs(ebbTimeOffset))) + 3600
+        let pad = [slackBeforeFloodOffset, slackBeforeEbbOffset, floodTimeOffset, ebbTimeOffset]
+            .map(abs).max()! + 3600
         let refEvents = reference.events(from: from.addingTimeInterval(-pad),
                                          to: to.addingTimeInterval(pad))
-        let shifted = refEvents.map { e -> CurrentEvent in
+        let shifted = refEvents.enumerated().map { (i, e) -> CurrentEvent in
             switch e.kind {
-            case .slack:    return CurrentEvent(time: e.time.addingTimeInterval(slackTimeOffset), speed: 0, kind: .slack)
             case .maxFlood: return CurrentEvent(time: e.time.addingTimeInterval(floodTimeOffset), speed: e.speed * floodSpeedRatio, kind: .maxFlood)
             case .maxEbb:   return CurrentEvent(time: e.time.addingTimeInterval(ebbTimeOffset), speed: e.speed * ebbSpeedRatio, kind: .maxEbb)
+            case .slack:
+                // Slack takes the offset for the phase it precedes: the next non-slack event.
+                let next = refEvents[(i + 1)...].first { $0.kind != .slack }
+                let off = next?.kind == .maxEbb ? slackBeforeEbbOffset : slackBeforeFloodOffset
+                return CurrentEvent(time: e.time.addingTimeInterval(off), speed: 0, kind: .slack)
             }
         }
         return shifted.filter { $0.time >= from && $0.time <= to }.sorted { $0.time < $1.time }

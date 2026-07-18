@@ -20,30 +20,60 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const j = async (u) => { await sleep(400); const r = await fetch(u, { headers: { 'User-Agent': UA } }); if (!r.ok) throw new Error(`${r.status} ${u}`); return r.json(); };
 
 const list = await j(`${MD}/stations.json?type=currentpredictions&units=english`);
+const byId = new Map(list.stations.map((s) => [s.id, s]));  // full list, for reference backfill
 const inBox = list.stations.filter((s) => s.lat >= S && s.lat <= N && s.lng >= W && s.lng <= E);
 const uniq = [...new Map(inBox.map((s) => [s.id, s])).values()];  // list repeats per bin
 console.error(`${uniq.length} stations in box [${S},${W},${N},${E}]`);
 
-// v1: harmonic stations only — covers every Salish pass (all type H). Subordinate
-// (type S) needs the two-slack NOAA model (sbfTimeAdjMin / sbeTimeAdjMin, plus
-// mfc/mec time+amp adjustments — see docs/research/2026-07-18-noaa-currents-api.md);
-// deferred rather than shipped with a single-slack approximation.
 const stations = [];
-let deferredSub = 0;
+const haveHarmonic = new Set();
+
+async function harmonic(s) {
+  const hc = await j(`${MD}/stations/${s.id}/harcon.json?units=english&bin=${s.currbin}`);
+  const cons = hc.HarmonicConstituents ?? [];
+  if (!cons.length) throw new Error('empty harcon');
+  haveHarmonic.add(s.id);
+  return {
+    id: s.id, name: s.name, type: 'harmonic',
+    floodDirection: cons[0].azi, ebbDirection: (cons[0].azi + 180) % 360,
+    offset: cons[0].majorMeanSpeed ?? 0,
+    constituents: cons.map((c) => ({ name: c.constituentName, amplitude: c.majorAmplitude, phase: c.majorPhaseGMT })),
+  };
+}
+
+let wSkipped = 0;
 for (const s of uniq) {
-  if (s.type !== 'H') { if (s.type === 'S') deferredSub++; continue; }
   try {
-    const hc = await j(`${MD}/stations/${s.id}/harcon.json?units=english&bin=${s.currbin}`);
-    const cons = hc.HarmonicConstituents ?? [];
-    if (!cons.length) { console.error(`skip ${s.id}: empty harcon`); continue; }
-    stations.push({
-      id: s.id, name: s.name, type: 'harmonic',
-      floodDirection: cons[0].azi, ebbDirection: (cons[0].azi + 180) % 360,
-      offset: cons[0].majorMeanSpeed ?? 0,
-      constituents: cons.map((c) => ({ name: c.constituentName, amplitude: c.majorAmplitude, phase: c.majorPhaseGMT })),
-    });
+    if (s.type === 'H') {
+      stations.push(await harmonic(s));
+    } else if (s.type === 'S') {
+      const o = await j(`${MD}/stations/${s.id}_${s.currbin}/currentpredictionoffsets.json`);
+      if (!o.refStationId) { console.error(`skip ${s.id}: no refStationId`); continue; }
+      stations.push({
+        id: s.id, name: s.name, type: 'subordinate', reference: o.refStationId,
+        floodDirection: o.meanFloodDir, ebbDirection: o.meanEbbDir,
+        slackBeforeFloodOffset: Math.round((o.sbfTimeAdjMin ?? 0) * 60),
+        slackBeforeEbbOffset: Math.round((o.sbeTimeAdjMin ?? 0) * 60),
+        floodTimeOffset: Math.round((o.mfcTimeAdjMin ?? 0) * 60),
+        ebbTimeOffset: Math.round((o.mecTimeAdjMin ?? 0) * 60),
+        floodSpeedRatio: o.mfcAmpAdj ?? 1, ebbSpeedRatio: o.mecAmpAdj ?? 1,
+      });
+    } else { wSkipped++; }  // type W (weak/rotary) — not modeled
   } catch (e) { console.error(`skip ${s.id}: ${e.message}`); }
 }
-console.error(`${deferredSub} subordinate (type S) stations deferred (needs two-slack model)`);
+
+// Backfill reference harmonic stations that subordinates point to but the box missed,
+// so the loader can resolve them.
+const needed = [...new Set(stations.filter((x) => x.type === 'subordinate').map((x) => x.reference))]
+  .filter((r) => !haveHarmonic.has(r));
+for (const refId of needed) {
+  const rs = byId.get(refId);
+  if (!rs) { console.error(`ref ${refId} not in station list`); continue; }
+  try { stations.push(await harmonic(rs)); }
+  catch (e) { console.error(`ref ${refId}: ${e.message}`); }
+}
+console.error(`${stations.filter((x) => x.type === 'harmonic').length} harmonic, `
+  + `${stations.filter((x) => x.type === 'subordinate').length} subordinate, `
+  + `${needed.length} refs backfilled, ${wSkipped} type-W skipped`);
 writeFileSync(out, JSON.stringify({ note: 'Generated from NOAA CO-OPS mdapi (harcon@currbin + currentpredictionoffsets). US only.', stations }, null, 0) + '\n');
 console.error(`wrote ${out} — ${stations.length} stations`);
