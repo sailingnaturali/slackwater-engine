@@ -62,3 +62,42 @@ import Testing
         #expect(events[i].time >= events[i - 1].time, "events out of order at \(i)")
     }
 }
+
+// The reduction is pure arithmetic on the reference's events: shift each event's
+// time by its per-kind offset, scale flood/ebb peak speeds by their ratios.
+@Test func subordinateReductionShiftsAndScales() throws {
+    let reference = CurrentStation(
+        constituents: [HarmonicConstituent(name: "M2", amplitude: 2.0, phase: 40)],
+        floodDirection: 100, ebbDirection: 280
+    )
+    let start = parseISO("2026-03-01T00:00:00Z")
+    let end = parseISO("2026-03-02T00:00:00Z")
+
+    let sub = SubordinateStation(
+        reference: reference,
+        slackTimeOffset: 600, floodTimeOffset: -1800, ebbTimeOffset: 1200,
+        floodSpeedRatio: 1.5, ebbSpeedRatio: 0.8,
+        floodDirection: 110, ebbDirection: 290
+    )
+
+    // Reference over a wider window so every subordinate event's pre-image is present
+    // (sub.events pads its own reference window; node-correction midpoints then differ
+    // by a hair, so speeds match to ~1e-3 kn, not bit-exactly).
+    let refEvents = reference.events(from: start.addingTimeInterval(-7200),
+                                     to: end.addingTimeInterval(7200))
+    let subEvents = sub.events(from: start, to: end)
+    #expect(!subEvents.isEmpty)
+
+    for se in subEvents {
+        let offset: TimeInterval = se.kind == .slack ? 600 : (se.kind == .maxFlood ? -1800 : 1200)
+        let ratio = se.kind == .maxFlood ? 1.5 : (se.kind == .maxEbb ? 0.8 : 1.0)
+        let origTime = se.time.addingTimeInterval(-offset)
+        let match = refEvents.filter { $0.kind == se.kind }
+            .min { abs($0.time.timeIntervalSince1970 - origTime.timeIntervalSince1970) < abs($1.time.timeIntervalSince1970 - origTime.timeIntervalSince1970) }
+        let r = try #require(match)
+        #expect(abs(r.time.timeIntervalSince1970 - origTime.timeIntervalSince1970) < 2, "time shift mismatch")
+        if se.kind != .slack {
+            #expect(abs(se.speed - r.speed * ratio) < 1e-3, "speed scale mismatch")
+        }
+    }
+}

@@ -131,3 +131,45 @@ public struct CurrentStation: Sendable {
             .sorted { $0.time < $1.time }
     }
 }
+
+/// A subordinate current station: no constituents of its own. Its events are the
+/// reference station's events, time-shifted per kind and speed-scaled for
+/// flood/ebb (the NOAA Current-Tables reduction). Event list only — no curve.
+public struct SubordinateStation: Sendable {
+    let reference: CurrentStation
+    public let slackTimeOffset: TimeInterval
+    public let floodTimeOffset: TimeInterval
+    public let ebbTimeOffset: TimeInterval
+    public let floodSpeedRatio: Double
+    public let ebbSpeedRatio: Double
+    public let floodDirection: Double
+    public let ebbDirection: Double
+
+    public init(reference: CurrentStation,
+                slackTimeOffset: TimeInterval, floodTimeOffset: TimeInterval, ebbTimeOffset: TimeInterval,
+                floodSpeedRatio: Double, ebbSpeedRatio: Double,
+                floodDirection: Double, ebbDirection: Double) {
+        self.reference = reference
+        self.slackTimeOffset = slackTimeOffset
+        self.floodTimeOffset = floodTimeOffset
+        self.ebbTimeOffset = ebbTimeOffset
+        self.floodSpeedRatio = floodSpeedRatio
+        self.ebbSpeedRatio = ebbSpeedRatio
+        self.floodDirection = floodDirection
+        self.ebbDirection = ebbDirection
+    }
+
+    public func events(from: Date, to: Date) -> [CurrentEvent] {
+        let pad = max(abs(slackTimeOffset), max(abs(floodTimeOffset), abs(ebbTimeOffset))) + 3600
+        let refEvents = reference.events(from: from.addingTimeInterval(-pad),
+                                         to: to.addingTimeInterval(pad))
+        let shifted = refEvents.map { e -> CurrentEvent in
+            switch e.kind {
+            case .slack:    return CurrentEvent(time: e.time.addingTimeInterval(slackTimeOffset), speed: 0, kind: .slack)
+            case .maxFlood: return CurrentEvent(time: e.time.addingTimeInterval(floodTimeOffset), speed: e.speed * floodSpeedRatio, kind: .maxFlood)
+            case .maxEbb:   return CurrentEvent(time: e.time.addingTimeInterval(ebbTimeOffset), speed: e.speed * ebbSpeedRatio, kind: .maxEbb)
+            }
+        }
+        return shifted.filter { $0.time >= from && $0.time <= to }.sorted { $0.time < $1.time }
+    }
+}
