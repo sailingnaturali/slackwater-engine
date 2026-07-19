@@ -87,8 +87,7 @@ tools/vendor-currents.sh       # pull the released US currents bundle into Resou
 > ```sh
 > npx current-stations golden <out.json> --station ID --bin N --start ISO --end ISO
 > ```
-> regenerates a NOAA currents oracle fixture. Run it from a residential IP — NOAA 404s
-> the mdapi from datacenter IPs.
+> regenerates a NOAA currents oracle fixture.
 
 ## Credit & licence
 

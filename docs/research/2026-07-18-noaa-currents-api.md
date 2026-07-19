@@ -13,19 +13,17 @@ reference documentation for
 The extractors that lived here (`tools/gen-currents.mjs`, `tools/gen-currents-golden.mjs`)
 moved with it. This engine now vendors the released bundle via `tools/vendor-currents.sh`.
 
-## Two claims here were wrong
+## One claim here was wrong
 
-Recorded because they were acted on downstream before being retested (2026-07-19, Node 24
-`fetch`, residential connection, byte-identical responses either way):
+Recorded because it was acted on downstream before being retested:
 
-- **"NOAA 404s the default fetch/curl User-Agent."** Does not reproduce, on any endpoint.
+- **"NOAA 404s the default fetch/curl User-Agent."** Does not reproduce, on any endpoint
+  (2026-07-19, Node 24 `fetch`, byte-identical responses with and without a browser UA).
   The original observation was almost certainly rate-limiting from high-volume probing,
   coinciding with a `currents_predictions` outage the same day.
-- **"`interval` must be lowercase `max_slack`."** Does not reproduce; `MAX_SLACK` returns
-  the same bytes.
 
-What *is* real: **datacenter IPs get 404s from the mdapi**, NOAA throttles bulk callers
-(pace requests), and the predictions product does go down.
+What *is* real: NOAA throttles bulk callers (pace requests), and the predictions product
+does go down.
 
 Also corrected: PUG1717 was recorded here as a survey station NOAA doesn't serve
 predictions for. It is served, at bin 35.
