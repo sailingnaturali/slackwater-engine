@@ -75,13 +75,20 @@ swift test                    # golden + NOAA-oracle validation (offline; bundle
 node tools/gen-golden.mjs      # regenerate tide golden fixtures from @neaps/tide-predictor
 node tools/gen-catalog.mjs     # regenerate the bundled tide constituent catalog
 node tools/gen-realworld.mjs   # refresh the NOAA tide real-world fixture
-node tools/gen-currents.mjs Sources/TideEngine/Resources/currents.json 15 -180 72 -64  # rebuild the US currents bundle from NOAA
-node tools/gen-currents-golden.mjs <station> <currbin> <start> <end> <out>  # a NOAA currents oracle fixture
+tools/vendor-currents.sh       # pull the released US currents bundle into Resources/
 ```
 
-> Currents tools query NOAA's mdapi and must run from a residential IP with a browser
-> User-Agent (both handled) — NOAA 404s the default fetch UA. See
-> [`docs/research/2026-07-18-noaa-currents-api.md`](docs/research/2026-07-18-noaa-currents-api.md).
+> **Current-station data is not extracted here.** The extractor, the schema, and the
+> NOAA API's undocumented behaviour live in
+> [current-stations](https://github.com/sailingnaturali/current-stations) — shared with
+> the SignalK plugin so the `currbin` / per-bin-reference / type-S traps stay solved in
+> one place. This engine vendors the released bundle and stays offline.
+>
+> ```sh
+> npx current-stations golden <out.json> --station ID --bin N --start ISO --end ISO
+> ```
+> regenerates a NOAA currents oracle fixture. Run it from a residential IP — NOAA 404s
+> the mdapi from datacenter IPs.
 
 ## Credit & licence
 
