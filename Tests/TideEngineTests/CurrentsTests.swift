@@ -120,11 +120,17 @@ import Testing
     // Deception Pass is a strong reversing current — expect both flood and ebb maxima.
     #expect(events.contains { $0.kind == .maxFlood } && events.contains { $0.kind == .maxEbb })
 
-    // A subordinate station resolves its reference and predicts.
+    // A pure subordinate station (empty own harcon) resolves its reference and predicts.
     if case .subordinate = try #require(cat.station("PCT1321")) {
         let subEvents = try #require(cat.station("PCT1321")).events(from: start, to: start.addingTimeInterval(86400))
         #expect(!subEvents.isEmpty, "subordinate PCT1321 produced no events")
     } else {
         Issue.record("PCT1321 should load as a subordinate station")
+    }
+
+    // A NOAA type-S station that has its OWN harmonics is bundled as harmonic
+    // (NOAA predicts it harmonically; the offset reduction would over-shoot it).
+    if case .harmonic = try #require(cat.station("PUG1716")) {} else {
+        Issue.record("PUG1716 has own harcon and should load as harmonic, not subordinate")
     }
 }

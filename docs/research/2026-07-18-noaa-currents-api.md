@@ -98,8 +98,32 @@ Note the **two** slack offsets (before-flood vs before-ebb). The engine's
 precedes). **Validated** against NOAA `currents_predictions` for PCT0236 (ref
 SFB1201): 6.1 min / 0.05 kn over 11 events. Endpoint needs the `_<currbin>`
 composite id. Amp adjustments (`mfcAmpAdj`/`mecAmpAdj`) are speed *ratios* on the
-reference peak (confirmed by the validation). The extractor backfills reference
-harmonic stations that fall outside the extraction box so subordinates resolve.
+reference peak (confirmed by the validation).
+
+### Type-S is not always subordinate — prefer own harcon
+
+A NOAA `type: S` station is **not necessarily** predicted by the offset reduction.
+Many type-S stations (survey-derived ones, e.g. `PUG1716`) carry their **own**
+harmonic constituents (`harcon.json` at their `currbin` is non-empty), and NOAA
+predicts *those* harmonically — the offset reduction over-shoots them badly (PUG1716
+was 89 min / 0.72 kn off as a reduction, 6.8 min / 0.06 kn as harmonic). Rule: for a
+type-S station, fetch its own harcon first; if non-empty, treat it as harmonic; only
+fall back to `currentpredictionoffsets` for stations with an **empty** harcon (the
+true table-subordinates, e.g. the ACT/PCT East-Coast set). Validated: 9 pure
+subordinates match NOAA to 0.9–7.7 min.
+
+### Reference is (station, BIN) — the per-bin trap
+
+A subordinate's `refStationBin` matters: harmonic constituents vary by depth bin,
+and a reference station can publish **several** bins with different constituents
+(e.g. `SFB1201` lists currbin `[26, 20, 10]`; bin 26 M2 = 2.359 kn @ 165.5°, bin 10
+M2 = 1.935 kn @ 161.7°). Storing one bin per reference silently uses the wrong
+constituents — a single-station test can pass by luck (its ref bin happened to be
+the one stored) while others are ~50 min / ~0.6 kn off. The extractor keys every
+harmonic entry by (id, bin) — plain `id` at the primary bin, `id@bin` for a
+reference at a non-primary bin — and subordinates point at the exact key. Caught
+only by validating a **diverse batch** (positive/negative/zero offsets, ratios
+0.2–1.5, multiple references), not a single station.
 
 ## Weak/mixed-station labeling — FIXED
 
