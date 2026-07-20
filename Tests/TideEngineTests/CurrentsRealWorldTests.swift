@@ -2,6 +2,28 @@ import Foundation
 import Testing
 @testable import TideEngine
 
+/// Nearest computed event of the SAME KIND as the golden event.
+///
+/// Matching by time alone against a list that includes slacks conflates timing
+/// error with direction error: at a station running late, the nearest event to a
+/// golden ebb is often a computed slack or flood, and the old `m.kind == kind`
+/// assertion reported that as a label flip. That pattern false-quarantined
+/// Tillicum Bridge and Calamity Point (0/19 and 0/24 wrong by a direct sign
+/// test) — see planning/docs/currents-audit-2026-07-20.md Q3. Same-kind matching
+/// also keeps the timing gate honest for direction: a genuinely reversed axis
+/// puts the nearest same-kind event ~half a cycle away, which fails the ±20/30
+/// min tolerance at every extremum instead of "flipping" a few labels.
+private func nearestSameKind(_ computed: [CurrentEvent], _ kind: CurrentEventKind, to t: Date) -> CurrentEvent? {
+    computed.filter { $0.kind == kind }
+        .min { abs($0.time.timeIntervalSince1970 - t.timeIntervalSince1970) < abs($1.time.timeIntervalSince1970 - t.timeIntervalSince1970) }
+}
+
+/// Sign of the station's velocity at the golden extremum time — the sound
+/// direction test (flood positive, ebb negative).
+private func signedSpeed(_ station: CurrentStation, at t: Date) -> Double {
+    station.speeds(from: t.addingTimeInterval(-30), to: t.addingTimeInterval(30), step: 60).first?.speed ?? 0
+}
+
 private struct CurrentGoldenFixture: Decodable {
     let station: String
     let floodDirection: Double
@@ -40,16 +62,14 @@ private struct CurrentGoldenFixture: Decodable {
     var maxTimeErr = 0.0, maxSpeedErr = 0.0, checked = 0
     for e in fx.events where e.kind != "slack" {  // max flood/ebb — robust; slacks noisier at weak stations
         let t = parseISO(e.time)
-        // Nearest computed event by TIME (avoids cross-cycle mis-match at weak,
-        // mostly-single-direction stations), then require kind + tolerance.
-        let m = try #require(
-            computed.min { abs($0.time.timeIntervalSince1970 - t.timeIntervalSince1970) < abs($1.time.timeIntervalSince1970 - t.timeIntervalSince1970) },
-            "no computed event near \(e.time)")
         let kind: CurrentEventKind = e.kind == "maxFlood" ? .maxFlood : .maxEbb
+        let m = try #require(nearestSameKind(computed, kind, to: t), "no computed \(e.kind) near \(e.time)")
         let timeErr = abs(m.time.timeIntervalSince1970 - t.timeIntervalSince1970) / 60
         let speedErr = abs(abs(m.speed) - abs(e.speed))
         maxTimeErr = max(maxTimeErr, timeErr); maxSpeedErr = max(maxSpeedErr, speedErr); checked += 1
-        #expect(m.kind == kind, "\(e.kind) at \(e.time): engine labeled \(m.kind) (\(m.speed) kn)")
+        let v = signedSpeed(station, at: t)
+        #expect(e.kind == "maxFlood" ? v > 0 : v < 0,
+                "\(e.kind) at \(e.time): modelled velocity \(v) kn has the wrong sign")
         #expect(timeErr < 20, "\(e.kind) at \(e.time): time off \(timeErr) min (phase field wrong?)")
         #expect(speedErr < 0.3, "\(e.kind) at \(e.time): speed \(m.speed) vs \(e.speed)")
     }
@@ -94,12 +114,13 @@ private struct SubGolden: Decodable {
     var maxTimeErr = 0.0, maxSpeedErr = 0.0, checked = 0
     for e in fx.events where e.kind != "slack" {
         let t = parseISO(e.time)
-        let m = try #require(computed.min { abs($0.time.timeIntervalSince1970 - t.timeIntervalSince1970) < abs($1.time.timeIntervalSince1970 - t.timeIntervalSince1970) })
         let kind: CurrentEventKind = e.kind == "maxFlood" ? .maxFlood : .maxEbb
+        // Same-kind matching; a reversed axis would fail the timing gate at
+        // every extremum (nearest same-kind event ~half a cycle away).
+        let m = try #require(nearestSameKind(computed, kind, to: t), "no computed \(e.kind) near \(e.time)")
         let timeErr = abs(m.time.timeIntervalSince1970 - t.timeIntervalSince1970) / 60
         let speedErr = abs(abs(m.speed) - abs(e.speed))
         maxTimeErr = max(maxTimeErr, timeErr); maxSpeedErr = max(maxSpeedErr, speedErr); checked += 1
-        #expect(m.kind == kind, "\(e.kind) at \(e.time): engine labeled \(m.kind)")
         #expect(timeErr < 30, "\(e.kind) at \(e.time): time off \(timeErr) min")
         #expect(speedErr < 0.4, "\(e.kind) at \(e.time): speed \(m.speed) vs \(e.speed)")
     }
@@ -140,13 +161,15 @@ private struct HomeBatch: Decodable {
         var maxT = 0.0, maxS = 0.0, n = 0, weak = 0
         for e in st.events where e.kind != "slack" {
             let t = parseISO(e.time)
-            let m = try #require(computed.min { abs($0.time.timeIntervalSince1970 - t.timeIntervalSince1970) < abs($1.time.timeIntervalSince1970 - t.timeIntervalSince1970) })
             if abs(e.speed) < significant { weak += 1; continue }
             let kind: CurrentEventKind = e.kind == "maxFlood" ? .maxFlood : .maxEbb
+            let m = try #require(nearestSameKind(computed, kind, to: t), "\(st.name): no computed \(e.kind) near \(e.time)")
             let timeErr = abs(m.time.timeIntervalSince1970 - t.timeIntervalSince1970) / 60
             let speedErr = abs(abs(m.speed) - abs(e.speed))
             maxT = max(maxT, timeErr); maxS = max(maxS, speedErr); n += 1
-            #expect(m.kind == kind, "\(st.name) \(e.kind) \(e.speed) kn at \(e.time): labeled \(m.kind)")
+            let v = signedSpeed(station, at: t)
+            #expect(e.kind == "maxFlood" ? v > 0 : v < 0,
+                    "\(st.name) \(e.kind) \(e.speed) kn at \(e.time): modelled velocity \(v) kn has the wrong sign")
             #expect(timeErr < 20, "\(st.name) \(e.kind) \(e.speed) kn at \(e.time): time off \(timeErr) min")
             #expect(speedErr < 0.35, "\(st.name) \(e.kind) at \(e.time): speed \(m.speed) vs \(e.speed)")
         }
@@ -183,12 +206,13 @@ private struct SubBatch: Decodable {
         var maxT = 0.0, maxS = 0.0, n = 0
         for e in st.events where e.kind != "slack" {
             let t = parseISO(e.time)
-            let m = try #require(computed.min { abs($0.time.timeIntervalSince1970 - t.timeIntervalSince1970) < abs($1.time.timeIntervalSince1970 - t.timeIntervalSince1970) })
             let kind: CurrentEventKind = e.kind == "maxFlood" ? .maxFlood : .maxEbb
+            // Same-kind matching; a reversed axis would fail the timing gate at
+            // every extremum (nearest same-kind event ~half a cycle away).
+            let m = try #require(nearestSameKind(computed, kind, to: t), "\(st.id): no computed \(e.kind) near \(e.time)")
             let timeErr = abs(m.time.timeIntervalSince1970 - t.timeIntervalSince1970) / 60
             let speedErr = abs(abs(m.speed) - abs(e.speed))
             maxT = max(maxT, timeErr); maxS = max(maxS, speedErr); n += 1
-            #expect(m.kind == kind, "\(st.id) \(e.kind) at \(e.time): engine labeled \(m.kind)")
             #expect(timeErr < 30, "\(st.id) \(e.kind) at \(e.time): time off \(timeErr) min")
             #expect(speedErr < 0.4, "\(st.id) \(e.kind) at \(e.time): speed \(m.speed) vs \(e.speed)")
         }
