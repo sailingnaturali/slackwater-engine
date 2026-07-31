@@ -56,10 +56,18 @@ func findSlacks(fromHour: Double, toHour: Double, provider: ParamProvider) -> [R
     return results
 }
 
-public struct CurrentPoint: Sendable { public let time: Date; public let speed: Double }
+public struct CurrentPoint: Sendable {
+    public let time: Date; public let speed: Double
+    // Public init so a consumer can synthesize a series (a derived gate's
+    // schematic curve has no harmonic station to predict from).
+    public init(time: Date, speed: Double) { self.time = time; self.speed = speed }
+}
 public enum CurrentEventKind: Sendable { case slack, maxFlood, maxEbb }
 public struct CurrentEvent: Sendable {
     public let time: Date; public let speed: Double; public let kind: CurrentEventKind
+    public init(time: Date, speed: Double, kind: CurrentEventKind) {
+        self.time = time; self.speed = speed; self.kind = kind
+    }
 }
 
 /// A harmonic current station. Same constituent math as `Station`; the prediction
